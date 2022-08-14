@@ -67,7 +67,7 @@
       integerDisplay = integerDigits.toLocaleString("en", { maximumFractionDigits: 0 })
       }
       if (decimalDigits != null) {
-        return "$(integerDisplay).${decimalDigits}"
+        return `${(integerDisplay)}.${decimalDigits}`
       } else {
         return integerDisplay
       }
@@ -77,7 +77,7 @@
       this.getDisplayNumber(this.currentOp)
     if (this.op != null) {
       this.previousOpTextElement.innerText = 
-        "${this.getDisplayNumber(this.previousOp)} ${this.op}"
+        `${this.getDisplayNumber(this.previousOp)} ${this.op}`
     } else {
       this.previousOpTextElement.innerText = ""
     }
