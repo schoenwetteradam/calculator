@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dodge County Property Price Analyzer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/analyzer.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-icon">🏡</span>
+      <div>
+        <h1>Dodge County Property Analyzer</h1>
+        <p class="tagline">Real-time market trends &amp; investment opportunities</p>
+      </div>
+    </div>
+    <div class="county-selector">
+      <label for="county-select">Select Dodge County</label>
+      <select id="county-select">
+        {% for c in counties %}
+        <option value="{{ c.state }}" {% if c.state == 'WI' %}selected{% endif %}>
+          {{ c.label }} ({{ c.city }})
+        </option>
+        {% endfor %}
+      </select>
+      <button id="load-btn" class="btn-primary">Analyze Market</button>
+    </div>
+  </div>
+</header>
+
+<main id="app">
+  <!-- Loading state -->
+  <div id="loading" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <p>Fetching market data…</p>
+  </div>
+
+  <!-- Error state -->
+  <div id="error-banner" class="error-banner hidden"></div>
+
+  <!-- Data source notice -->
+  <div id="source-notice" class="source-notice hidden"></div>
+
+  <!-- ===== Hero metrics ===== -->
+  <section id="hero-metrics" class="section hidden">
+    <div class="metrics-grid">
+      <div class="metric-card" id="card-current-price">
+        <div class="metric-label">Current Median Home Value</div>
+        <div class="metric-value" id="metric-price">—</div>
+        <div class="metric-sub" id="metric-price-src">ZHVI (Zillow)</div>
+      </div>
+      <div class="metric-card" id="card-trend">
+        <div class="metric-label">Market Trend</div>
+        <div class="metric-value" id="metric-trend">—</div>
+        <div class="metric-sub" id="metric-trend-period">6-month change</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">12-Month Change</div>
+        <div class="metric-value" id="metric-12mo">—</div>
+        <div class="metric-sub">Year-over-year</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Gross Rental Yield</div>
+        <div class="metric-value" id="metric-yield">—</div>
+        <div class="metric-sub">Based on median rent</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Investment Grade</div>
+        <div class="metric-value grade-badge" id="metric-grade">—</div>
+        <div class="metric-sub" id="metric-score">Score: —</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Market Phase</div>
+        <div class="metric-value" id="metric-phase">—</div>
+        <div class="metric-sub" id="metric-momentum">Momentum: —</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Chart ===== -->
+  <section id="chart-section" class="section hidden">
+    <div class="section-header">
+      <h2>Price History &amp; Moving Averages</h2>
+      <div class="chart-legend">
+        <span class="legend-dot" style="background:#6366f1"></span> ZHVI Price
+        <span class="legend-dot" style="background:#f59e0b"></span> 3-mo MA
+        <span class="legend-dot" style="background:#10b981"></span> 6-mo MA
+        <span class="legend-dot" style="background:#ef4444"></span> 12-mo MA
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="priceChart"></canvas>
+    </div>
+    <div class="chart-toggles">
+      <button class="toggle-btn active" data-range="12">1 Year</button>
+      <button class="toggle-btn" data-range="24">2 Years</button>
+      <button class="toggle-btn" data-range="36">3 Years</button>
+      <button class="toggle-btn" data-range="0">All</button>
+    </div>
+  </section>
+
+  <!-- ===== Two-column: Stats + Score ===== -->
+  <section id="stats-section" class="section hidden">
+    <div class="two-col">
+
+      <!-- Market Statistics -->
+      <div class="panel">
+        <h2>Market Statistics</h2>
+        <table class="stats-table" id="stats-table">
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Investment Score -->
+      <div class="panel">
+        <h2>Investment Score Breakdown</h2>
+        <div class="score-gauge-wrap">
+          <canvas id="scoreGauge" width="220" height="130"></canvas>
+          <div class="gauge-label">
+            <span id="gauge-score">—</span>
+            <span class="gauge-grade" id="gauge-grade">—</span>
+          </div>
+        </div>
+        <div class="score-components" id="score-components"></div>
+        <div class="recommendation" id="recommendation"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== Deal Opportunities ===== -->
+  <section id="deals-section" class="section hidden">
+    <div class="section-header">
+      <h2>🎯 Investment Opportunities Found</h2>
+      <p class="section-desc">Ranked by opportunity score based on current market data</p>
+    </div>
+    <div class="deals-grid" id="deals-grid"></div>
+    <div id="no-deals" class="no-deals hidden">
+      <p>No standout opportunities detected under current market conditions. Monitor the market for entry points.</p>
+    </div>
+  </section>
+
+  <!-- ===== Redfin market signals ===== -->
+  <section id="redfin-section" class="section hidden">
+    <div class="section-header">
+      <h2>State-Level Market Signals <span class="badge-src">Redfin</span></h2>
+    </div>
+    <div class="chart-container" style="height:220px">
+      <canvas id="redinChart"></canvas>
+    </div>
+  </section>
+
+  <!-- ===== Compare all Dodge Counties ===== -->
+  <section id="compare-section" class="section">
+    <div class="section-header">
+      <h2>Compare All Dodge Counties</h2>
+      <button id="compare-btn" class="btn-secondary">Load Comparison</button>
+    </div>
+    <div id="compare-grid" class="compare-grid hidden"></div>
+  </section>
+
+  <!-- ===== Data disclaimer ===== -->
+  <footer class="data-footer">
+    <p>
+      Data sources: <strong>Zillow Research (ZHVI)</strong> &bull;
+      <strong>US Census Bureau ACS</strong> &bull;
+      <strong>Redfin Market Tracker</strong> &bull;
+      <strong>Modelled county baselines</strong> (when live data unavailable).
+      For educational purposes only. Consult a licensed real-estate professional before investing.
+    </p>
+  </footer>
+</main>
+
+<script src="{{ url_for('static', filename='js/analyzer.js') }}"></script>
+</body>
+</html>
