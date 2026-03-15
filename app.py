@@ -2,7 +2,7 @@
 Dodge County Property Price Analyzer
 Flask backend serving market data from Zillow Research, Census Bureau, and Redfin.
 """
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, send_from_directory
 import os
 import sys
 
@@ -26,6 +26,15 @@ DODGE_COUNTIES = [
     {"state": "NE", "fips_state": "31", "fips_county": "053", "label": "Dodge County, Nebraska", "city": "Fremont"},
     {"state": "GA", "fips_state": "13", "fips_county": "091", "label": "Dodge County, Georgia", "city": "Eastman"},
 ]
+
+
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "favicon.ico",
+        mimetype="image/vnd.microsoft.icon",
+    )
 
 
 @app.route("/")
