@@ -647,16 +647,27 @@ function renderNews(items) {
 
 
 async function loadWiMunicipalityRankings() {
+  if (!wiRankingsBtn || !wiRankingsGrid) return;
+
   wiRankingsBtn.textContent = "Loading…";
   wiRankingsBtn.disabled = true;
+  wiRankingsGrid.classList.remove("hidden");
+  wiRankingsGrid.innerHTML = '<div class="compare-card"><h3>Loading rankings…</h3><p style="color:#94a3b8">Calculating municipality scores and family-home fit metrics.</p></div>';
+
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), 20000);
   try {
-    const resp = await fetch("/api/wi-municipality-rankings");
+    const resp = await fetch("/api/wi-municipality-rankings", { signal: ctrl.signal });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     if (!data.success) throw new Error(data.error || "Failed to load WI rankings");
     renderWiMunicipalityRankings(data.rankings || []);
   } catch (e) {
-    showError("WI municipality rankings failed: " + e.message);
+    const msg = e.name === "AbortError" ? "Request timed out after 20s" : e.message;
+    wiRankingsGrid.innerHTML = `<div class="compare-card"><h3>Unable to load WI rankings</h3><p style="color:#ef4444">${msg}</p></div>`;
+    showError("WI municipality rankings failed: " + msg);
   } finally {
+    clearTimeout(timeoutId);
     wiRankingsBtn.textContent = "Reload WI Rankings";
     wiRankingsBtn.disabled = false;
   }
@@ -678,10 +689,13 @@ function renderWiMunicipalityRankings(rows) {
             <tr><td>Overall Rank Score</td><td><strong>${row.overall_rank_score}</strong></td></tr>
             <tr><td>Investment Score</td><td>${inv.score || "—"} (${inv.grade || "—"})</td></tr>
             <tr><td>Family Investor-Fit</td><td>${stats.family_investor_fit_score || "—"}/100</td></tr>
-            <tr><td>4+BD/2+BA Finder Score</td><td>${row.target_finder_score || "—"}/100</td></tr>
-            <tr><td>4+BD/2+BA Share</td><td>${stats.target_4bd2ba_share_pct || "—"}%</td></tr>
+            <tr><td>4+ Bedroom Share</td><td>${stats.four_plus_bedroom_share_pct || "—"}%</td></tr>
             <tr><td>Est. 4+BD/2+BA PITI</td><td>${fmt$(stats.sfh_family_monthly_piti)}</td></tr>
             <tr><td>12-mo Trend</td><td>${trend.change_12mo_pct >= 0 ? "+" : ""}${(trend.change_12mo_pct || 0).toFixed(1)}%</td></tr>
+            <tr><td>4+BD/2+BA Finder Score</td><td>${row.target_finder_score || "—"}/100</td></tr>
+            <tr><td>4+BD/2+BA Share</td><td>${stats.target_4bd2ba_share_pct || "—"}%</td></tr>
+            <tr><td>Est. 4+BD/2+BA PITI</td><td>${fmt$(stats.target_4bd2ba_monthly_piti)}</td></tr>
+            <tr><td>12-mo Trend (scaled proxy)</td><td>${trend.change_12mo_pct >= 0 ? "+" : ""}${(trend.change_12mo_pct || 0).toFixed(1)}%</td></tr>
           </table>
         </div>`;
     })
