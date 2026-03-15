@@ -279,7 +279,7 @@ class DataFetcher:
             f"?get={variables}&for=county:{fips_county}&in=state:{fips_state}"
         )
         try:
-            resp = self.session.get(url, timeout=15)
+            resp = self.session.get(url, timeout=8)
             resp.raise_for_status()
             data = resp.json()
             if len(data) < 2:
@@ -364,7 +364,7 @@ class DataFetcher:
         )
 
         try:
-            resp = self.session.get(url, timeout=15)
+            resp = self.session.get(url, timeout=8)
             resp.raise_for_status()
             data = resp.json()
             if len(data) < 2:
