@@ -17,6 +17,8 @@ let currentRange = 12; // months shown on chart
    DOM refs
    ============================================================ */
 const countySelect = document.getElementById("county-select");
+const citySelect = document.getElementById("city-select");
+const citySelectorWrap = document.getElementById("city-selector-wrap");
 const loadBtn = document.getElementById("load-btn");
 const loading = document.getElementById("loading");
 const errorBanner = document.getElementById("error-banner");
@@ -25,11 +27,52 @@ const compareBtn = document.getElementById("compare-btn");
 const compareGrid = document.getElementById("compare-grid");
 
 /* ============================================================
+   City selector helpers
+   ============================================================ */
+const WI_CITIES = JSON.parse(document.getElementById("wi-cities-data").textContent);
+
+function populateCitySelect(cities) {
+  citySelect.innerHTML = "";
+  const byType = {};
+  cities.forEach((c) => {
+    if (!byType[c.type]) byType[c.type] = [];
+    byType[c.type].push(c.name);
+  });
+  ["City", "Village", "Town"].forEach((type) => {
+    if (!byType[type]) return;
+    const group = document.createElement("optgroup");
+    group.label = type + "s";
+    byType[type].forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      if (name === "Beaver Dam") opt.selected = true;
+      group.appendChild(opt);
+    });
+    citySelect.appendChild(group);
+  });
+}
+
+function updateCitySelector(state) {
+  if (state === "WI") {
+    populateCitySelect(WI_CITIES);
+    citySelectorWrap.style.display = "flex";
+  } else {
+    citySelectorWrap.style.display = "none";
+  }
+}
+
+/* ============================================================
    Init
    ============================================================ */
 document.addEventListener("DOMContentLoaded", () => {
+  updateCitySelector("WI");
   loadMarketData("WI"); // default to Wisconsin on page load
   loadSignals("WI");    // load macro signals in parallel
+
+  countySelect.addEventListener("change", () => {
+    updateCitySelector(countySelect.value);
+  });
 
   loadBtn.addEventListener("click", () => {
     const state = countySelect.value;
@@ -87,9 +130,10 @@ async function loadMarketData(state) {
 function renderAll(data) {
   const { trend, market_stats, trend_detail, deals, investment_score, zhvi_history, county, data_source } = data;
 
-  // Source notice
+  // Source notice (include selected WI city if applicable)
   const src = data_source || "";
-  sourceNotice.textContent = `📡 Data source: ${src}`;
+  const cityCtx = county.state === "WI" && citySelect.value ? ` · ${citySelect.value}` : "";
+  sourceNotice.textContent = `📡 Data source: ${src}${cityCtx}`;
   sourceNotice.classList.remove("hidden");
 
   renderHeroMetrics(trend, market_stats, investment_score, trend_detail);

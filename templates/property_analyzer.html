@@ -28,8 +28,15 @@
         </option>
         {% endfor %}
       </select>
+      <div id="city-selector-wrap" style="display:flex;flex-direction:column;gap:4px">
+        <label for="city-select" style="font-size:0.78rem;color:#94a3b8">City / Town</label>
+        <select id="city-select"></select>
+      </div>
       <button id="load-btn" class="btn-primary">Analyze Market</button>
     </div>
+    <script id="wi-cities-data" type="application/json">
+      {{ counties[0].cities | tojson }}
+    </script>
   </div>
 </header>
 

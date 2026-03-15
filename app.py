@@ -20,8 +20,60 @@ analyzer = PropertyAnalyzer()
 deal_finder = DealFinder()
 signals_fetcher = SignalsFetcher()
 
+DODGE_WI_CITIES = [
+    # Cities
+    {"name": "Beaver Dam", "type": "City"},
+    {"name": "Fox Lake", "type": "City"},
+    {"name": "Hartford", "type": "City"},
+    {"name": "Horicon", "type": "City"},
+    {"name": "Juneau", "type": "City"},
+    {"name": "Mayville", "type": "City"},
+    {"name": "Waupun", "type": "City"},
+    # Villages
+    {"name": "Brownsville", "type": "Village"},
+    {"name": "Burnett", "type": "Village"},
+    {"name": "Clyman", "type": "Village"},
+    {"name": "Hustisford", "type": "Village"},
+    {"name": "Iron Ridge", "type": "Village"},
+    {"name": "Kekoskee", "type": "Village"},
+    {"name": "Lomira", "type": "Village"},
+    {"name": "Lowell", "type": "Village"},
+    {"name": "Reeseville", "type": "Village"},
+    {"name": "Rubicon", "type": "Village"},
+    {"name": "Theresa", "type": "Village"},
+    # Towns
+    {"name": "Town of Ashippun", "type": "Town"},
+    {"name": "Town of Beaver Dam", "type": "Town"},
+    {"name": "Town of Burnett", "type": "Town"},
+    {"name": "Town of Clyman", "type": "Town"},
+    {"name": "Town of Elba", "type": "Town"},
+    {"name": "Town of Emmet", "type": "Town"},
+    {"name": "Town of Fox Lake", "type": "Town"},
+    {"name": "Town of Herman", "type": "Town"},
+    {"name": "Town of Hubbard", "type": "Town"},
+    {"name": "Town of Hustisford", "type": "Town"},
+    {"name": "Town of Lebanon", "type": "Town"},
+    {"name": "Town of Leroy", "type": "Town"},
+    {"name": "Town of Lomira", "type": "Town"},
+    {"name": "Town of Lowell", "type": "Town"},
+    {"name": "Town of Oak Grove", "type": "Town"},
+    {"name": "Town of Portland", "type": "Town"},
+    {"name": "Town of Rubicon", "type": "Town"},
+    {"name": "Town of Shields", "type": "Town"},
+    {"name": "Town of Theresa", "type": "Town"},
+    {"name": "Town of Trenton", "type": "Town"},
+    {"name": "Town of Westford", "type": "Town"},
+]
+
 DODGE_COUNTIES = [
-    {"state": "WI", "fips_state": "55", "fips_county": "027", "label": "Dodge County, Wisconsin", "city": "Beaver Dam"},
+    {
+        "state": "WI",
+        "fips_state": "55",
+        "fips_county": "027",
+        "label": "Dodge County, Wisconsin",
+        "city": "Beaver Dam",
+        "cities": DODGE_WI_CITIES,
+    },
     {"state": "MN", "fips_state": "27", "fips_county": "039", "label": "Dodge County, Minnesota", "city": "Mantorville"},
     {"state": "NE", "fips_state": "31", "fips_county": "053", "label": "Dodge County, Nebraska", "city": "Fremont"},
     {"state": "GA", "fips_state": "13", "fips_county": "091", "label": "Dodge County, Georgia", "city": "Eastman"},
