@@ -8,6 +8,8 @@ A web application that pulls publicly available real estate data to analyze hous
 - **Market trend detection** — automatically classifies the market as strong uptrend, downtrend, or sideways
 - **Investment scoring** — 0-100 composite score across 5 dimensions: price momentum, affordability, rental yield, market stability, and long-term appreciation
 - **Deal finder** — identifies specific opportunities (buy-the-dip, cash-flow rental, affordability plays, favorable buy-vs-rent)
+- **4+BD/2+BA target-home finder** — estimates inventory, payment burden, and income requirements for family-size single-family homes in Dodge County, WI and peer counties
+- **Analysis rationales** — plain-language explanation of how key modelled metrics are calculated
 - **County comparison** — side-by-side view of all four Dodge Counties (WI, MN, NE, GA)
 - **Key metrics** — price-to-rent ratio, price-to-income ratio, gross/net rental yield, affordability index, estimated monthly PITI
 

@@ -145,12 +145,21 @@ def get_wi_municipality_rankings():
             market_stats = analyzer.get_market_stats(zhvi_data, census_data)
             inv_score = deal_finder.calculate_investment_score(zhvi_data, census_data)
 
-            overall = round((inv_score.get("score", 50) * 0.65) + (market_stats.get("family_investor_fit_score", 50) * 0.35), 1)
+            target_index = market_stats.get("target_4bd2ba_affordability_index", 0)
+            target_supply = market_stats.get("target_4bd2ba_share_pct", 0)
+            target_finder_score = round(min(100.0, (target_index * 0.65) + (target_supply * 0.35)), 1)
+            overall = round(
+                (inv_score.get("score", 50) * 0.50)
+                + (market_stats.get("family_investor_fit_score", 50) * 0.25)
+                + (target_finder_score * 0.25),
+                1,
+            )
             rankings.append({
                 "municipality": municipality_cfg,
                 "trend": trend,
                 "market_stats": market_stats,
                 "investment_score": inv_score,
+                "target_finder_score": target_finder_score,
                 "overall_rank_score": overall,
             })
         except Exception as exc:
