@@ -126,6 +126,41 @@ def get_market_data():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/wi-municipality-rankings")
+def get_wi_municipality_rankings():
+    """Rank Dodge County, WI municipalities for investment + family home fit."""
+    county_cfg = next((c for c in DODGE_COUNTIES if c["state"] == "WI"), DODGE_COUNTIES[0])
+    rankings = []
+
+    for municipality_cfg in DODGE_WI_MUNICIPALITIES:
+        if municipality_cfg["id"] == "all":
+            continue
+        try:
+            region_name = municipality_cfg["name"]
+            region_type = municipality_cfg.get("kind", "city")
+            zhvi_data = fetcher.get_zillow_zhvi("WI", region_name, county_cfg, region_type=region_type)
+            census_data = fetcher.get_census_municipality_data(county_cfg, municipality_cfg)
+
+            trend = analyzer.calculate_trend(zhvi_data)
+            market_stats = analyzer.get_market_stats(zhvi_data, census_data)
+            inv_score = deal_finder.calculate_investment_score(zhvi_data, census_data)
+
+            overall = round((inv_score.get("score", 50) * 0.65) + (market_stats.get("family_investor_fit_score", 50) * 0.35), 1)
+            rankings.append({
+                "municipality": municipality_cfg,
+                "trend": trend,
+                "market_stats": market_stats,
+                "investment_score": inv_score,
+                "overall_rank_score": overall,
+            })
+        except Exception as exc:
+            rankings.append({"municipality": municipality_cfg, "error": str(exc)})
+
+    ranked = sorted([r for r in rankings if "error" not in r], key=lambda r: r["overall_rank_score"], reverse=True)
+    errored = [r for r in rankings if "error" in r]
+    return jsonify({"success": True, "rankings": ranked + errored})
+
+
 @app.route("/api/compare")
 def compare_counties():
     """Return summary for all Dodge Counties for side-by-side comparison."""

@@ -48,21 +48,25 @@ BASELINE_DATA = {
         "median_home_value": 232000, "median_rent": 925, "median_income": 67500,
         "total_units": 37800, "owner_occupied": 26200, "renter_occupied": 8900,
         "base_zhvi": 215000, "zhvi_growth_2yr": 0.14, "zhvi_growth_1yr": 0.06,
+        "single_family_units": 27800, "four_plus_bedroom_units": 12900,
     },
     "MN": {
         "median_home_value": 271000, "median_rent": 975, "median_income": 73000,
         "total_units": 10200, "owner_occupied": 7400, "renter_occupied": 2100,
         "base_zhvi": 258000, "zhvi_growth_2yr": 0.11, "zhvi_growth_1yr": 0.05,
+        "single_family_units": 7600, "four_plus_bedroom_units": 2900,
     },
     "NE": {
         "median_home_value": 198000, "median_rent": 865, "median_income": 63000,
         "total_units": 41500, "owner_occupied": 28800, "renter_occupied": 9700,
         "base_zhvi": 188000, "zhvi_growth_2yr": 0.18, "zhvi_growth_1yr": 0.08,
+        "single_family_units": 30300, "four_plus_bedroom_units": 12100,
     },
     "GA": {
         "median_home_value": 182000, "median_rent": 895, "median_income": 52000,
         "total_units": 9800, "owner_occupied": 6500, "renter_occupied": 2400,
         "base_zhvi": 173000, "zhvi_growth_2yr": 0.22, "zhvi_growth_1yr": 0.09,
+        "single_family_units": 7000, "four_plus_bedroom_units": 2400,
     },
 }
 
@@ -264,6 +268,10 @@ class DataFetcher:
             "B25001_001E",   # Total housing units
             "B25003_002E",   # Owner-occupied
             "B25003_003E",   # Renter-occupied
+            "B25024_002E",   # 1-unit detached
+            "B25024_003E",   # 1-unit attached
+            "B25041_005E",   # 4 bedrooms
+            "B25041_006E",   # 5+ bedrooms
             "B01003_001E",   # Total population
         ])
         url = (
@@ -295,6 +303,10 @@ class DataFetcher:
                 "total_units": safe_int(row.get("B25001_001E")),
                 "owner_occupied": safe_int(row.get("B25003_002E")),
                 "renter_occupied": safe_int(row.get("B25003_003E")),
+                "single_family_detached": safe_int(row.get("B25024_002E")),
+                "single_family_attached": safe_int(row.get("B25024_003E")),
+                "four_bedroom_units": safe_int(row.get("B25041_005E")),
+                "five_plus_bedroom_units": safe_int(row.get("B25041_006E")),
                 "population": safe_int(row.get("B01003_001E")),
                 "source": "US Census Bureau ACS 2022 (live)",
             }
@@ -339,6 +351,10 @@ class DataFetcher:
             "B25001_001E",
             "B25003_002E",
             "B25003_003E",
+            "B25024_002E",
+            "B25024_003E",
+            "B25041_005E",
+            "B25041_006E",
             "B01003_001E",
         ])
 
@@ -372,6 +388,10 @@ class DataFetcher:
                 "total_units": safe_int(row.get("B25001_001E")),
                 "owner_occupied": safe_int(row.get("B25003_002E")),
                 "renter_occupied": safe_int(row.get("B25003_003E")),
+                "single_family_detached": safe_int(row.get("B25024_002E")),
+                "single_family_attached": safe_int(row.get("B25024_003E")),
+                "four_bedroom_units": safe_int(row.get("B25041_005E")),
+                "five_plus_bedroom_units": safe_int(row.get("B25041_006E")),
                 "population": safe_int(row.get("B01003_001E")),
                 "source": "US Census Bureau ACS 2022 (live municipality)",
             }
@@ -391,6 +411,10 @@ class DataFetcher:
             "total_units": bd["total_units"],
             "owner_occupied": bd["owner_occupied"],
             "renter_occupied": bd["renter_occupied"],
+            "single_family_detached": bd.get("single_family_units", int(bd["total_units"] * 0.68)),
+            "single_family_attached": int(bd.get("single_family_units", int(bd["total_units"] * 0.68)) * 0.15),
+            "four_bedroom_units": int(bd.get("four_plus_bedroom_units", int(bd["total_units"] * 0.24)) * 0.7),
+            "five_plus_bedroom_units": int(bd.get("four_plus_bedroom_units", int(bd["total_units"] * 0.24)) * 0.3),
             "population": bd["total_units"] * 2,
             "source": "Baseline estimates (Census API unavailable)",
         }
