@@ -11,12 +11,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from data_fetcher import DataFetcher
 from analyzer import PropertyAnalyzer
 from deal_finder import DealFinder
+from signals import SignalsFetcher
 
 app = Flask(__name__)
 
 fetcher = DataFetcher()
 analyzer = PropertyAnalyzer()
 deal_finder = DealFinder()
+signals_fetcher = SignalsFetcher()
 
 DODGE_COUNTIES = [
     {"state": "WI", "fips_state": "55", "fips_county": "027", "label": "Dodge County, Wisconsin", "city": "Beaver Dam"},
@@ -93,6 +95,21 @@ def compare_counties():
         except Exception as e:
             results.append({"county": county_cfg, "error": str(e)})
     return jsonify({"success": True, "counties": results})
+
+
+@app.route("/api/signals")
+def get_signals():
+    """
+    Real-world market signals: macro (FRED/BLS), local economy, and news RSS.
+    Set FRED_API_KEY env var for live mortgage/Fed rate data.
+    BLS CPI and unemployment work without any key.
+    """
+    state = request.args.get("state", "WI")
+    try:
+        data = signals_fetcher.get_all_signals(state)
+        return jsonify({"success": True, **data})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 if __name__ == "__main__":

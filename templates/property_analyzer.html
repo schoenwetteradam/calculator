@@ -154,6 +154,50 @@
     </div>
   </section>
 
+  <!-- ===== Real-World Market Signals ===== -->
+  <section id="signals-section" class="section hidden">
+    <div class="section-header">
+      <h2>📡 Real-World Pricing Signals</h2>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="section-desc">Macro &amp; local factors influencing Dodge County prices</span>
+        <span id="fred-notice" class="badge-src hidden">Live FRED data</span>
+        <span id="signals-score-badge" class="signal-score-badge">Macro Score: —</span>
+      </div>
+    </div>
+
+    <!-- Composite macro bar -->
+    <div class="macro-bar-wrap" id="macro-bar-wrap">
+      <div class="macro-bar-label">
+        <span>Bearish</span>
+        <span style="font-weight:700;color:#e2e8f0" id="macro-bar-label-center">Overall Market Environment</span>
+        <span>Bullish</span>
+      </div>
+      <div class="macro-bar-track">
+        <div class="macro-bar-fill" id="macro-bar-fill"></div>
+        <div class="macro-bar-needle" id="macro-bar-needle"></div>
+      </div>
+    </div>
+
+    <!-- Signal cards grid -->
+    <div class="signals-grid" id="signals-grid"></div>
+
+    <!-- Mortgage rate mini chart -->
+    <div class="two-col" style="margin-top:20px">
+      <div class="panel" id="mortgage-chart-panel">
+        <h2>30-Year Mortgage Rate History <span class="badge-src">FRED</span></h2>
+        <div style="height:180px;position:relative">
+          <canvas id="mortgageChart"></canvas>
+        </div>
+      </div>
+      <div class="panel" id="news-panel">
+        <h2>Real Estate News Feed <span class="badge-src">Live RSS</span></h2>
+        <ul class="news-list" id="news-list">
+          <li class="news-loading">Loading headlines…</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== Compare all Dodge Counties ===== -->
   <section id="compare-section" class="section">
     <div class="section-header">
@@ -169,7 +213,10 @@
       Data sources: <strong>Zillow Research (ZHVI)</strong> &bull;
       <strong>US Census Bureau ACS</strong> &bull;
       <strong>Redfin Market Tracker</strong> &bull;
-      <strong>Modelled county baselines</strong> (when live data unavailable).
+      <strong>Modelled county baselines</strong> (when live data unavailable) &bull;
+      <strong>BLS API</strong> (CPI, unemployment) &bull;
+      <strong>FRED API</strong> (mortgage rates, Fed policy — set <code>FRED_API_KEY</code> env var for live data) &bull;
+      <strong>RSS news feeds</strong>.
       For educational purposes only. Consult a licensed real-estate professional before investing.
     </p>
   </footer>

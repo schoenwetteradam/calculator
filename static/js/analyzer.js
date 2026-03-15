@@ -9,6 +9,7 @@
 let priceChart = null;
 let scoreChart = null;
 let redinChart = null;
+let mortgageChart = null;
 let allData = null;
 let currentRange = 12; // months shown on chart
 
@@ -28,13 +29,20 @@ const compareGrid = document.getElementById("compare-grid");
    ============================================================ */
 document.addEventListener("DOMContentLoaded", () => {
   loadMarketData("WI"); // default to Wisconsin on page load
+  loadSignals("WI");    // load macro signals in parallel
 
   loadBtn.addEventListener("click", () => {
-    loadMarketData(countySelect.value);
+    const state = countySelect.value;
+    loadMarketData(state);
+    loadSignals(state);
   });
 
   countySelect.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") loadMarketData(countySelect.value);
+    if (e.key === "Enter") {
+      const state = countySelect.value;
+      loadMarketData(state);
+      loadSignals(state);
+    }
   });
 
   compareBtn.addEventListener("click", loadComparison);
@@ -390,6 +398,175 @@ function renderRedfin(data) {
 }
 
 /* ============================================================
+   Real-world signals
+   ============================================================ */
+async function loadSignals(state) {
+  try {
+    const resp = await fetch(`/api/signals?state=${state}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data.success) return;
+    renderSignals(data);
+    document.getElementById("signals-section").classList.remove("hidden");
+  } catch (e) {
+    console.warn("Signals load failed:", e.message);
+  }
+}
+
+function renderSignals(data) {
+  const score = data.composite_score || 50;
+  const fredAvail = data.fred_available;
+
+  // Badge
+  el("signals-score-badge").textContent = `Macro Score: ${score.toFixed(0)}/100`;
+  if (fredAvail) el("fred-notice").classList.remove("hidden");
+
+  // Needle on gradient bar (0% = left/bearish, 100% = right/bullish)
+  el("macro-bar-needle").style.left = score + "%";
+
+  // Signal cards
+  const all = { ...data.macro, ...data.local };
+  const preferred_order = [
+    "mortgage_30yr", "fed_funds", "treasury_10yr",
+    "state_unemployment", "cpi_yoy",
+    "housing_starts", "building_permits", "existing_homes", "case_shiller",
+  ];
+
+  const grid = el("signals-grid");
+  grid.innerHTML = preferred_order
+    .filter((k) => all[k])
+    .map((k) => renderSignalCard(k, all[k]))
+    .join("");
+
+  // Mortgage rate chart
+  const mData = data.macro?.mortgage_30yr;
+  if (mData?.history?.length > 1) {
+    renderMortgageChart(mData.history);
+  } else {
+    el("mortgage-chart-panel").style.display = "none";
+  }
+
+  // News
+  renderNews(data.news || []);
+}
+
+function renderSignalCard(key, s) {
+  const trendIcon = s.trend === "rising" ? "▲" : s.trend === "falling" ? "▼" : "→";
+  const trendCls = s.trend === "rising" ? "signal-trend-up" : s.trend === "falling" ? "signal-trend-down" : "signal-trend-flat";
+  const estimated = s.estimated ? ' <span style="color:#475569;font-size:0.68rem">(est.)</span>' : "";
+  const unit = s.unit || "";
+
+  let valueDisplay;
+  if (key === "case_shiller") {
+    valueDisplay = s.yoy_change_pct != null
+      ? `${s.yoy_change_pct >= 0 ? "+" : ""}${s.yoy_change_pct.toFixed(1)}% YoY`
+      : s.value?.toFixed(1);
+  } else if (unit === "%" || unit === "idx") {
+    valueDisplay = typeof s.value === "number" ? s.value.toFixed(2) + (unit === "%" ? "%" : "") : "—";
+  } else if (unit === "k") {
+    valueDisplay = typeof s.value === "number" ? s.value.toFixed(0) + "k" : "—";
+  } else if (unit === "M") {
+    valueDisplay = typeof s.value === "number" ? s.value.toFixed(2) + "M" : "—";
+  } else {
+    valueDisplay = typeof s.value === "number" ? s.value.toFixed(2) : "—";
+  }
+
+  const pillLabel = (s.signal || "neutral").replace("_", " ").replace("strong ", "");
+  return `
+    <div class="signal-card">
+      <div class="signal-card-header">
+        <div class="signal-icon-title">
+          <span>${s.icon || "📊"}</span>
+          <span>${s.label || key}</span>
+        </div>
+        <span class="signal-pill pill-${s.signal || "neutral"}">${pillLabel}</span>
+      </div>
+      <div class="signal-value">${valueDisplay}${estimated}</div>
+      <div class="signal-meta">
+        <span>${s.category || ""}</span>
+        ${s.change != null && s.change !== 0
+          ? `<span class="${trendCls}" style="margin-left:8px">${trendIcon} ${Math.abs(s.change).toFixed(2)}${unit === "%" ? "pp" : ""}</span>`
+          : ""}
+        ${s.date ? `<span style="margin-left:8px;color:#475569">${s.date}</span>` : ""}
+      </div>
+      <div class="signal-desc">${s.description || ""}</div>
+      ${s.why ? `<div class="signal-why">${s.why}</div>` : ""}
+    </div>`;
+}
+
+function renderMortgageChart(history) {
+  const labels = history.map((h) => fmtDate(h.date));
+  const values = history.map((h) => h.value);
+  const ctx = document.getElementById("mortgageChart").getContext("2d");
+  if (mortgageChart) mortgageChart.destroy();
+
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+
+  mortgageChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "30-yr Rate %",
+          data: values,
+          borderColor: "#f59e0b",
+          backgroundColor: "rgba(245,158,11,0.08)",
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2,
+          borderWidth: 2,
+        },
+        {
+          label: "Average",
+          data: values.map(() => avg),
+          borderColor: "#475569",
+          fill: false,
+          pointRadius: 0,
+          borderWidth: 1,
+          borderDash: [4, 4],
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: (c) => ` ${c.dataset.label}: ${c.raw.toFixed(2)}%` },
+        },
+      },
+      scales: {
+        x: { ticks: { color: "#64748b", font: { size: 10 }, maxTicksLimit: 8 }, grid: { display: false } },
+        y: {
+          ticks: { color: "#64748b", callback: (v) => v + "%" },
+          grid: { color: "#1e2235" },
+          min: Math.max(0, Math.min(...values) - 0.5),
+        },
+      },
+    },
+  });
+}
+
+function renderNews(items) {
+  const list = el("news-list");
+  if (!items.length) {
+    list.innerHTML = '<li class="news-loading">No news feeds available right now.</li>';
+    return;
+  }
+  list.innerHTML = items
+    .map(
+      (item) => `
+      <li>
+        <a href="${item.link || "#"}" target="_blank" rel="noopener noreferrer">${item.title}</a>
+        <div class="news-meta">${item.source || ""}${item.published ? " · " + item.published.slice(0, 16) : ""}</div>
+      </li>`
+    )
+    .join("");
+}
+
+/* ============================================================
    County comparison
    ============================================================ */
 async function loadComparison() {
@@ -460,7 +637,7 @@ function showSections() {
 }
 
 function hideSections() {
-  ["hero-metrics", "chart-section", "stats-section", "deals-section", "redfin-section", "source-notice"].forEach((id) => {
+  ["hero-metrics", "chart-section", "stats-section", "deals-section", "redfin-section", "signals-section", "source-notice"].forEach((id) => {
     const s = document.getElementById(id);
     if (s) s.classList.add("hidden");
   });

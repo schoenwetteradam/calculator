@@ -13,8 +13,14 @@ from datetime import datetime, timedelta
 import pandas as pd
 import requests
 
-CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "cache")
-os.makedirs(CACHE_DIR, exist_ok=True)
+# Vercel serverless has a read-only filesystem except /tmp.
+# We use a two-level cache: in-memory (fastest, lost on cold start) + /tmp disk (survives warm starts).
+_MEM_CACHE: dict = {}
+
+_DISK_CACHE_DIR = "/tmp/property_cache" if os.path.exists("/tmp") else os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "data", "cache"
+)
+os.makedirs(_DISK_CACHE_DIR, exist_ok=True)
 
 STATE_NAMES = {
     "WI": "Wisconsin",
@@ -71,7 +77,7 @@ class DataFetcher:
     # ------------------------------------------------------------------ cache
     def _cache_path(self, key: str) -> str:
         safe = key.replace("/", "_").replace(":", "_").replace(" ", "_")
-        return os.path.join(CACHE_DIR, f"{safe}.json")
+        return os.path.join(_DISK_CACHE_DIR, f"{safe}.json")
 
     def _cache_valid(self, path: str, max_hours: int = 12) -> bool:
         if not os.path.exists(path):
@@ -79,16 +85,30 @@ class DataFetcher:
         age = datetime.now() - datetime.fromtimestamp(os.path.getmtime(path))
         return age < timedelta(hours=max_hours)
 
-    def _load(self, key: str):
+    def _load(self, key: str, max_hours: int = 12):
+        # 1. In-memory (fastest)
+        entry = _MEM_CACHE.get(key)
+        if entry and (datetime.now() - entry["ts"]) < timedelta(hours=max_hours):
+            return entry["data"]
+        # 2. Disk (/tmp survives warm Vercel invocations)
         p = self._cache_path(key)
-        if self._cache_valid(p):
-            with open(p) as f:
-                return json.load(f)
+        if self._cache_valid(p, max_hours):
+            try:
+                with open(p) as f:
+                    data = json.load(f)
+                _MEM_CACHE[key] = {"data": data, "ts": datetime.now()}
+                return data
+            except Exception:
+                pass
         return None
 
     def _save(self, key: str, data):
-        with open(self._cache_path(key), "w") as f:
-            json.dump(data, f)
+        _MEM_CACHE[key] = {"data": data, "ts": datetime.now()}
+        try:
+            with open(self._cache_path(key), "w") as f:
+                json.dump(data, f)
+        except OSError:
+            pass  # read-only filesystem — memory cache still works
 
     # --------------------------------------------------------- Zillow ZHVI
     def get_zillow_zhvi(self, state: str, county_name: str, county_cfg: dict) -> dict:
@@ -107,7 +127,7 @@ class DataFetcher:
             "County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
         )
         try:
-            resp = self.session.get(url, timeout=45)
+            resp = self.session.get(url, timeout=20)  # Vercel pro: 30s; keep headroom
             resp.raise_for_status()
             df = pd.read_csv(io.StringIO(resp.text), low_memory=False)
 
