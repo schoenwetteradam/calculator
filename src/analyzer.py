@@ -17,6 +17,32 @@ class PropertyAnalyzer:
         score = (value - low) / (high - low) * 100
         return max(0.0, min(100.0, round(score, 1)))
 
+    @staticmethod
+    def _letter_grade(score: float) -> str:
+        if score >= 93:
+            return "A"
+        if score >= 90:
+            return "A-"
+        if score >= 87:
+            return "B+"
+        if score >= 83:
+            return "B"
+        if score >= 80:
+            return "B-"
+        if score >= 77:
+            return "C+"
+        if score >= 73:
+            return "C"
+        if score >= 70:
+            return "C-"
+        if score >= 67:
+            return "D+"
+        if score >= 63:
+            return "D"
+        if score >= 60:
+            return "D-"
+        return "F"
+
 
     # ---------------------------------------------------------------- trend
     def calculate_trend(self, zhvi_data: dict) -> dict:
@@ -148,9 +174,17 @@ class PropertyAnalyzer:
         income_needed = round(sfh_piti * 12 / 0.30, 2)
         family_payment_burden_pct = round((sfh_piti / (median_income / 12)) * 100, 1) if median_income else 0
         family_affordability_score = self._bounded_score(45 - family_payment_burden_pct, 0, 30)
-        supply_score = self._bounded_score((single_family_share * 0.6) + (four_plus_bed_share * 1.4), 25, 85)
+        sfh_supply_score = self._bounded_score(single_family_share, 30, 85)
+        bedroom_depth_score = self._bounded_score(four_plus_bed_share, 8, 40)
         volatility_score = self._bounded_score(12 - volatility, 0, 10)
-        family_investor_fit_score = round((family_affordability_score * 0.45) + (supply_score * 0.35) + (volatility_score * 0.20), 1)
+        family_investor_fit_score = round(
+            (family_affordability_score * 0.40)
+            + (sfh_supply_score * 0.25)
+            + (bedroom_depth_score * 0.25)
+            + (volatility_score * 0.10),
+            1,
+        )
+        family_investor_fit_grade = self._letter_grade(family_investor_fit_score)
 
         return {
             "current_zhvi": round(current, 2),
@@ -177,7 +211,11 @@ class PropertyAnalyzer:
             "income_needed_for_sfh_family_home": income_needed,
             "family_payment_burden_pct": family_payment_burden_pct,
             "family_affordability_score": family_affordability_score,
+            "sfh_supply_score": sfh_supply_score,
+            "bedroom_depth_score": bedroom_depth_score,
+            "market_volatility_score": volatility_score,
             "family_investor_fit_score": family_investor_fit_score,
+            "family_investor_fit_grade": family_investor_fit_grade,
             "population": census_data.get("population", 0),
             "total_units": census_data.get("total_units", 0),
             "owner_occupied": census_data.get("owner_occupied", 0),
