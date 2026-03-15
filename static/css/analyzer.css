@@ -732,3 +732,36 @@ body {
   color: var(--text-muted);
   line-height: 1.6;
 }
+
+/* ---- 4+BD/2+BA finder + rationales ---- */
+.target-home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.target-kpi {
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.target-kpi .kpi-label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.target-kpi .kpi-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.rationale-list {
+  margin-left: 18px;
+  color: var(--text-muted);
+  display: grid;
+  gap: 10px;
+  font-size: 0.9rem;
+}

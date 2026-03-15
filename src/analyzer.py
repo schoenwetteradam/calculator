@@ -186,6 +186,33 @@ class PropertyAnalyzer:
         )
         family_investor_fit_grade = self._letter_grade(family_investor_fit_score)
 
+        # Target-home finder metrics (4+ bed, 2+ bath SFH)
+        # ACS provides bedroom mix but not a direct 2+ bathroom field at this geography,
+        # so we model bath adequacy as a conservative share of larger single-family stock.
+        two_plus_bath_proxy_share = round(min(95.0, (single_family_share * 0.62) + (four_plus_bed_share * 0.45)), 1)
+        target_4bd2ba_share = round(min(four_plus_bed_share, two_plus_bath_proxy_share), 1)
+        target_4bd2ba_units = int(round((census_data.get("total_units", 0) * target_4bd2ba_share) / 100))
+        target_home_price_estimate = round(current * 1.38, 2)
+        target_down = target_home_price_estimate * 0.20
+        target_loan = target_home_price_estimate - target_down
+        if monthly_rate > 0:
+            target_piti = target_loan * (monthly_rate * (1 + monthly_rate) ** n_payments) / (((1 + monthly_rate) ** n_payments) - 1)
+        else:
+            target_piti = target_loan / n_payments
+        target_piti += target_home_price_estimate * 0.012 / 12
+        target_piti = round(target_piti, 2)
+        target_income_needed = round(target_piti * 12 / 0.30, 2)
+        target_affordability_ratio = round((median_income / target_income_needed) if target_income_needed else 0, 2)
+        target_affordability_index = round(target_affordability_ratio * 100, 1)
+        target_payment_burden = round((target_piti / (median_income / 12)) * 100, 1) if median_income else 0
+
+        analysis_rationales = [
+            f"4+BD/2+BA estimated inventory uses a bedroom-depth floor ({four_plus_bed_share:.1f}%) and a 2+ bath proxy ({two_plus_bath_proxy_share:.1f}%) derived from single-family mix.",
+            "Target monthly payment uses a 30-year fixed assumption at 7.0% with 20% down plus 1.2% annual property tax.",
+            f"Household feasibility is measured by a 30%-of-gross-income guideline; current median-income burden is {target_payment_burden:.1f}%.",
+            "Family investor-fit combines affordability, single-family supply, 4+ bedroom depth, and market stability to balance cash flow and owner-occupant demand.",
+        ]
+
         return {
             "current_zhvi": round(current, 2),
             "median_home_value_census": census_data.get("median_home_value", 0),
@@ -216,6 +243,16 @@ class PropertyAnalyzer:
             "market_volatility_score": volatility_score,
             "family_investor_fit_score": family_investor_fit_score,
             "family_investor_fit_grade": family_investor_fit_grade,
+            "two_plus_bath_proxy_share_pct": two_plus_bath_proxy_share,
+            "target_4bd2ba_share_pct": target_4bd2ba_share,
+            "target_4bd2ba_units_estimate": target_4bd2ba_units,
+            "target_4bd2ba_price_estimate": target_home_price_estimate,
+            "target_4bd2ba_monthly_piti": target_piti,
+            "target_4bd2ba_income_needed": target_income_needed,
+            "target_4bd2ba_affordability_ratio": target_affordability_ratio,
+            "target_4bd2ba_affordability_index": target_affordability_index,
+            "target_4bd2ba_payment_burden_pct": target_payment_burden,
+            "analysis_rationales": analysis_rationales,
             "population": census_data.get("population", 0),
             "total_units": census_data.get("total_units", 0),
             "owner_occupied": census_data.get("owner_occupied", 0),
