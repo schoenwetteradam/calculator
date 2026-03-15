@@ -131,6 +131,7 @@ function renderAll(data) {
   renderHeroMetrics(trend, market_stats, investment_score, trend_detail);
   updateChart(zhvi_history, trend_detail, currentRange);
   renderStatsTable(market_stats);
+  renderTargetHomeView(market_stats, county);
   renderScoreGauge(investment_score);
   renderScoreComponents(investment_score);
   renderDeals(deals);
@@ -271,12 +272,44 @@ function renderStatsTable(stats) {
     ["Family Payment Burden", (stats.family_payment_burden_pct || 0) + "%"],
     ["Family Affordability Score", (stats.family_affordability_score || 0) + "/100"],
     ["Family Investor-Fit Score", (stats.family_investor_fit_score || 0) + "/100"],
+    ["4+BD/2+BA Inventory (est.)", num(stats.target_4bd2ba_units_estimate)],
+    ["4+BD/2+BA Affordability Index", (stats.target_4bd2ba_affordability_index || 0) + ""],
+    ["4+BD/2+BA Payment Burden", (stats.target_4bd2ba_payment_burden_pct || 0) + "%"],
   ];
 
   const tbody = document.querySelector("#stats-table tbody");
   tbody.innerHTML = rows
     .map(([label, val]) => `<tr><td>${label}</td><td>${val}</td></tr>`)
     .join("");
+}
+
+function renderTargetHomeView(stats, county) {
+  const grid = el("target-home-grid");
+  if (!grid) return;
+
+  const isWi = county && county.state === "WI";
+  const title = isWi ? "Dodge County, WI" : `Dodge County, ${county?.state || ""}`;
+
+  const cards = [
+    ["Area", title],
+    ["Est. 4+BD/2+BA Inventory", num(stats.target_4bd2ba_units_estimate)],
+    ["4+BD/2+BA Share", (stats.target_4bd2ba_share_pct || 0) + "%"],
+    ["2+ Bath Proxy Share", (stats.two_plus_bath_proxy_share_pct || 0) + "%"],
+    ["Est. Target Price", fmt$(stats.target_4bd2ba_price_estimate)],
+    ["Est. Monthly PITI", fmt$(stats.target_4bd2ba_monthly_piti)],
+    ["Income Needed (30%)", fmt$(stats.target_4bd2ba_income_needed)],
+    ["Affordability Index", (stats.target_4bd2ba_affordability_index || 0).toFixed(1)],
+  ];
+
+  grid.innerHTML = cards
+    .map(([label, value]) => `<div class="target-kpi"><div class="kpi-label">${label}</div><div class="kpi-value">${value || "—"}</div></div>`)
+    .join("");
+
+  const rationale = el("rationale-list");
+  const notes = stats.analysis_rationales || [];
+  rationale.innerHTML = notes.length
+    ? notes.map((n) => `<li>${n}</li>`).join("")
+    : '<li>No rationale details available for this selection.</li>';
 }
 
 /* ---- Score gauge (arc) ---- */
@@ -645,7 +678,8 @@ function renderWiMunicipalityRankings(rows) {
             <tr><td>Overall Rank Score</td><td><strong>${row.overall_rank_score}</strong></td></tr>
             <tr><td>Investment Score</td><td>${inv.score || "—"} (${inv.grade || "—"})</td></tr>
             <tr><td>Family Investor-Fit</td><td>${stats.family_investor_fit_score || "—"}/100</td></tr>
-            <tr><td>4+ Bedroom Share</td><td>${stats.four_plus_bedroom_share_pct || "—"}%</td></tr>
+            <tr><td>4+BD/2+BA Finder Score</td><td>${row.target_finder_score || "—"}/100</td></tr>
+            <tr><td>4+BD/2+BA Share</td><td>${stats.target_4bd2ba_share_pct || "—"}%</td></tr>
             <tr><td>Est. 4+BD/2+BA PITI</td><td>${fmt$(stats.sfh_family_monthly_piti)}</td></tr>
             <tr><td>12-mo Trend</td><td>${trend.change_12mo_pct >= 0 ? "+" : ""}${(trend.change_12mo_pct || 0).toFixed(1)}%</td></tr>
           </table>
@@ -720,14 +754,14 @@ function hideError() {
 }
 
 function showSections() {
-  ["hero-metrics", "chart-section", "stats-section", "deals-section"].forEach((id) => {
+  ["hero-metrics", "chart-section", "stats-section", "target-home-section", "deals-section"].forEach((id) => {
     const s = document.getElementById(id);
     if (s) s.classList.remove("hidden");
   });
 }
 
 function hideSections() {
-  ["hero-metrics", "chart-section", "stats-section", "deals-section", "redfin-section", "signals-section", "source-notice"].forEach((id) => {
+  ["hero-metrics", "chart-section", "stats-section", "target-home-section", "deals-section", "redfin-section", "signals-section", "source-notice"].forEach((id) => {
     const s = document.getElementById(id);
     if (s) s.classList.add("hidden");
   });
