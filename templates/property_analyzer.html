@@ -28,6 +28,10 @@
         </option>
         {% endfor %}
       </select>
+      <label for="municipality-select">WI city/town/village</label>
+      <select id="municipality-select" disabled>
+        <option value="all" selected>All of Dodge County</option>
+      </select>
       <button id="load-btn" class="btn-primary">Analyze Market</button>
     </div>
   </div>
@@ -198,6 +202,18 @@
       </div>
     </div>
   </section>
+
+
+
+  <!-- ===== WI municipality rankings ===== -->
+  <section id="wi-rankings-section" class="section">
+    <div class="section-header">
+      <h2>Best WI Dodge Municipalities for Investing + Family Home Fit</h2>
+      <button id="wi-rankings-btn" class="btn-secondary">Load WI Rankings</button>
+    </div>
+    <div id="wi-rankings-grid" class="compare-grid hidden"></div>
+  </section>
+
 
   <!-- ===== Compare all Dodge Counties ===== -->
   <section id="compare-section" class="section">

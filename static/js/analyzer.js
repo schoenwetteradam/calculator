@@ -18,34 +18,46 @@ let currentRange = 12; // months shown on chart
    ============================================================ */
 const countySelect = document.getElementById("county-select");
 const loadBtn = document.getElementById("load-btn");
+const municipalitySelect = document.getElementById("municipality-select");
 const loading = document.getElementById("loading");
 const errorBanner = document.getElementById("error-banner");
 const sourceNotice = document.getElementById("source-notice");
 const compareBtn = document.getElementById("compare-btn");
 const compareGrid = document.getElementById("compare-grid");
+const wiRankingsBtn = document.getElementById("wi-rankings-btn");
+const wiRankingsGrid = document.getElementById("wi-rankings-grid");
 
 /* ============================================================
    Init
    ============================================================ */
-document.addEventListener("DOMContentLoaded", () => {
-  loadMarketData("WI"); // default to Wisconsin on page load
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadMunicipalityOptions();
+  toggleMunicipalitySelect("WI");
+  loadMarketData("WI", municipalitySelect.value || "all"); // default to Wisconsin on page load
   loadSignals("WI");    // load macro signals in parallel
 
   loadBtn.addEventListener("click", () => {
     const state = countySelect.value;
-    loadMarketData(state);
+    const municipality = state === "WI" ? municipalitySelect.value : "all";
+    loadMarketData(state, municipality);
     loadSignals(state);
+  });
+
+  countySelect.addEventListener("change", () => {
+    toggleMunicipalitySelect(countySelect.value);
   });
 
   countySelect.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       const state = countySelect.value;
-      loadMarketData(state);
+      const municipality = state === "WI" ? municipalitySelect.value : "all";
+      loadMarketData(state, municipality);
       loadSignals(state);
     }
   });
 
   compareBtn.addEventListener("click", loadComparison);
+  if (wiRankingsBtn) wiRankingsBtn.addEventListener("click", loadWiMunicipalityRankings);
 
   document.querySelectorAll(".toggle-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -60,13 +72,37 @@ document.addEventListener("DOMContentLoaded", () => {
 /* ============================================================
    Data loading
    ============================================================ */
-async function loadMarketData(state) {
+
+
+async function loadMunicipalityOptions() {
+  try {
+    const resp = await fetch("/api/wi-dodge-municipalities");
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const options = await resp.json();
+
+    municipalitySelect.innerHTML = options
+      .map((opt) => `<option value="${opt.id}">${opt.label} (${opt.kind})</option>`)
+      .join("");
+
+    municipalitySelect.value = "all";
+  } catch (e) {
+    console.warn("Failed to load municipality options:", e.message);
+    municipalitySelect.innerHTML = '<option value="all">All of Dodge County</option>';
+  }
+}
+
+function toggleMunicipalitySelect(state) {
+  const isWi = state === "WI";
+  municipalitySelect.disabled = !isWi;
+  if (!isWi) municipalitySelect.value = "all";
+}
+async function loadMarketData(state, municipality = "all") {
   showLoading(true);
   hideError();
   hideSections();
 
   try {
-    const resp = await fetch(`/api/market-data?state=${state}`);
+    const resp = await fetch(`/api/market-data?state=${state}&municipality=${encodeURIComponent(municipality)}`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     if (!data.success) throw new Error(data.error || "Unknown error");
@@ -227,6 +263,14 @@ function renderStatsTable(stats) {
     ["Owner Occupied", num(stats.owner_occupied)],
     ["Renter Occupied", num(stats.renter_occupied)],
     ["Population (ACS)", num(stats.population)],
+    ["Single-Family Housing Share", (stats.single_family_share_pct || 0) + "%"],
+    ["4+ Bedroom Housing Share", (stats.four_plus_bedroom_share_pct || 0) + "%"],
+    ["Est. 4+BD/2+BA SFH Price", fmt$(stats.sfh_family_price_estimate)],
+    ["Est. 4+BD/2+BA Monthly PITI", fmt$(stats.sfh_family_monthly_piti)],
+    ["Income Needed (30% rule)", fmt$(stats.income_needed_for_sfh_family_home)],
+    ["Family Payment Burden", (stats.family_payment_burden_pct || 0) + "%"],
+    ["Family Affordability Score", (stats.family_affordability_score || 0) + "/100"],
+    ["Family Investor-Fit Score", (stats.family_investor_fit_score || 0) + "/100"],
   ];
 
   const tbody = document.querySelector("#stats-table tbody");
@@ -283,6 +327,7 @@ function renderScoreComponents(score) {
     rental_yield: "Rental Yield",
     market_stability: "Market Stability",
     long_term_appreciation: "LT Appreciation",
+    family_home_fit: "4+BD Family Home Fit",
   };
 
   const container = el("score-components");
@@ -564,6 +609,51 @@ function renderNews(items) {
       </li>`
     )
     .join("");
+}
+
+
+
+async function loadWiMunicipalityRankings() {
+  wiRankingsBtn.textContent = "Loading…";
+  wiRankingsBtn.disabled = true;
+  try {
+    const resp = await fetch("/api/wi-municipality-rankings");
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || "Failed to load WI rankings");
+    renderWiMunicipalityRankings(data.rankings || []);
+  } catch (e) {
+    showError("WI municipality rankings failed: " + e.message);
+  } finally {
+    wiRankingsBtn.textContent = "Reload WI Rankings";
+    wiRankingsBtn.disabled = false;
+  }
+}
+
+function renderWiMunicipalityRankings(rows) {
+  wiRankingsGrid.innerHTML = rows
+    .map((row, idx) => {
+      if (row.error) return `<div class="compare-card"><h3>${row.municipality?.label || "Unknown"}</h3><p style="color:#ef4444">${row.error}</p></div>`;
+
+      const inv = row.investment_score || {};
+      const stats = row.market_stats || {};
+      const trend = row.trend || {};
+      const rank = idx + 1;
+      return `
+        <div class="compare-card">
+          <h3>#${rank} ${row.municipality.label}</h3>
+          <table>
+            <tr><td>Overall Rank Score</td><td><strong>${row.overall_rank_score}</strong></td></tr>
+            <tr><td>Investment Score</td><td>${inv.score || "—"} (${inv.grade || "—"})</td></tr>
+            <tr><td>Family Investor-Fit</td><td>${stats.family_investor_fit_score || "—"}/100</td></tr>
+            <tr><td>4+ Bedroom Share</td><td>${stats.four_plus_bedroom_share_pct || "—"}%</td></tr>
+            <tr><td>Est. 4+BD/2+BA PITI</td><td>${fmt$(stats.sfh_family_monthly_piti)}</td></tr>
+            <tr><td>12-mo Trend</td><td>${trend.change_12mo_pct >= 0 ? "+" : ""}${(trend.change_12mo_pct || 0).toFixed(1)}%</td></tr>
+          </table>
+        </div>`;
+    })
+    .join("");
+
+  wiRankingsGrid.classList.remove("hidden");
 }
 
 /* ============================================================

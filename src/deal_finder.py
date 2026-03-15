@@ -262,12 +262,39 @@ class DealFinder:
             la = 58
         components["long_term_appreciation"] = round(la, 1)
 
+
+        # 6. Family single-family fit (4+ bedroom supply + payment burden)
+        sf_detached = census_data.get("single_family_detached", 0)
+        sf_attached = census_data.get("single_family_attached", 0)
+        total_units = census_data.get("total_units", 0)
+        four_plus_units = (census_data.get("four_bedroom_units", 0) + census_data.get("five_plus_bedroom_units", 0))
+
+        sf_share = ((sf_detached + sf_attached) / total_units * 100) if total_units else 0
+        four_plus_share = (four_plus_units / total_units * 100) if total_units else 0
+
+        family_price = current * 1.35
+        monthly_rate = 0.07 / 12
+        n_payments = 360
+        family_loan = family_price * 0.8
+        if monthly_rate > 0:
+            family_piti = family_loan * (monthly_rate * (1 + monthly_rate) ** n_payments) / (((1 + monthly_rate) ** n_payments) - 1)
+        else:
+            family_piti = family_loan / n_payments
+        family_piti += family_price * 0.012 / 12
+        burden = (family_piti / (median_income / 12) * 100) if median_income else 100
+
+        supply_score = max(0, min(100, ((sf_share * 0.6) + (four_plus_share * 1.4) - 25) / 60 * 100))
+        burden_score = max(0, min(100, (55 - burden) / 25 * 100))
+        family_fit = round((supply_score * 0.5) + (burden_score * 0.5), 1)
+        components["family_home_fit"] = family_fit
+
         weights = {
-            "price_momentum": 0.25,
-            "affordability": 0.20,
-            "rental_yield": 0.25,
-            "market_stability": 0.15,
-            "long_term_appreciation": 0.15,
+            "price_momentum": 0.20,
+            "affordability": 0.16,
+            "rental_yield": 0.20,
+            "market_stability": 0.14,
+            "long_term_appreciation": 0.14,
+            "family_home_fit": 0.16,
         }
         total = sum(components[k] * weights[k] for k in components)
         total = round(total, 1)

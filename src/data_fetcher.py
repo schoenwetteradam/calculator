@@ -48,21 +48,25 @@ BASELINE_DATA = {
         "median_home_value": 232000, "median_rent": 925, "median_income": 67500,
         "total_units": 37800, "owner_occupied": 26200, "renter_occupied": 8900,
         "base_zhvi": 215000, "zhvi_growth_2yr": 0.14, "zhvi_growth_1yr": 0.06,
+        "single_family_units": 27800, "four_plus_bedroom_units": 12900,
     },
     "MN": {
         "median_home_value": 271000, "median_rent": 975, "median_income": 73000,
         "total_units": 10200, "owner_occupied": 7400, "renter_occupied": 2100,
         "base_zhvi": 258000, "zhvi_growth_2yr": 0.11, "zhvi_growth_1yr": 0.05,
+        "single_family_units": 7600, "four_plus_bedroom_units": 2900,
     },
     "NE": {
         "median_home_value": 198000, "median_rent": 865, "median_income": 63000,
         "total_units": 41500, "owner_occupied": 28800, "renter_occupied": 9700,
         "base_zhvi": 188000, "zhvi_growth_2yr": 0.18, "zhvi_growth_1yr": 0.08,
+        "single_family_units": 30300, "four_plus_bedroom_units": 12100,
     },
     "GA": {
         "median_home_value": 182000, "median_rent": 895, "median_income": 52000,
         "total_units": 9800, "owner_occupied": 6500, "renter_occupied": 2400,
         "base_zhvi": 173000, "zhvi_growth_2yr": 0.22, "zhvi_growth_1yr": 0.09,
+        "single_family_units": 7000, "four_plus_bedroom_units": 2400,
     },
 }
 
@@ -111,20 +115,21 @@ class DataFetcher:
             pass  # read-only filesystem — memory cache still works
 
     # --------------------------------------------------------- Zillow ZHVI
-    def get_zillow_zhvi(self, state: str, county_name: str, county_cfg: dict) -> dict:
+    def get_zillow_zhvi(self, state: str, county_name: str, county_cfg: dict, region_type: str = "county") -> dict:
         """
         Fetch county-level ZHVI (Zillow Home Value Index) time series.
         Data file: https://www.zillow.com/research/data/
         Middle tier, single-family + condo, seasonally adjusted.
         """
-        key = f"zhvi_{state}_{county_name}"
+        key = f"zhvi_{state}_{region_type}_{county_name}"
         cached = self._load(key)
         if cached:
             return cached
 
+        dataset_prefix = "County" if region_type == "county" else "City"
         url = (
             "https://files.zillowstatic.com/research/public_csvs/zhvi/"
-            "County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
+            f"{dataset_prefix}_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv"
         )
         try:
             resp = self.session.get(url, timeout=20)  # Vercel pro: 30s; keep headroom
@@ -133,20 +138,38 @@ class DataFetcher:
 
             state_name = STATE_NAMES.get(state, state)
 
-            # Try matching on StateName + RegionName first, then State abbr
-            mask = (
-                df["StateName"].str.strip().str.lower() == state_name.lower()
-            ) & (df["RegionName"].str.strip().str.lower() == county_name.lower())
-            county_df = df[mask]
+            # Try matching on state + region name + region type for more specific places
+            name_series = df["RegionName"].astype(str).str.strip().str.lower()
+            state_name_series = df["StateName"].astype(str).str.strip().str.lower()
+            region_type_series = df["RegionType"].astype(str).str.strip().str.lower()
+
+            county_df = df[
+                (state_name_series == state_name.lower())
+                & (name_series == county_name.lower())
+                & (region_type_series == region_type.lower())
+            ]
 
             if county_df.empty:
-                mask2 = (df["State"].str.strip() == state) & (
-                    df["RegionName"].str.strip().str.lower() == county_name.lower()
-                )
-                county_df = df[mask2]
+                county_df = df[
+                    (df["State"].astype(str).str.strip() == state)
+                    & (name_series == county_name.lower())
+                    & (region_type_series == region_type.lower())
+                ]
+
+            if county_df.empty and region_type != "county":
+                county_df = df[
+                    (state_name_series == state_name.lower())
+                    & (name_series == county_name.lower())
+                ]
 
             if county_df.empty:
-                raise ValueError(f"County not found in Zillow data: {county_name}, {state}")
+                county_df = df[
+                    (df["State"].astype(str).str.strip() == state)
+                    & (name_series == county_name.lower())
+                ]
+
+            if county_df.empty:
+                raise ValueError(f"Region not found in Zillow data: {county_name}, {state}")
 
             date_cols = [c for c in df.columns if c[:4].isdigit()]
             row = county_df.iloc[0]
@@ -245,6 +268,10 @@ class DataFetcher:
             "B25001_001E",   # Total housing units
             "B25003_002E",   # Owner-occupied
             "B25003_003E",   # Renter-occupied
+            "B25024_002E",   # 1-unit detached
+            "B25024_003E",   # 1-unit attached
+            "B25041_005E",   # 4 bedrooms
+            "B25041_006E",   # 5+ bedrooms
             "B01003_001E",   # Total population
         ])
         url = (
@@ -276,6 +303,10 @@ class DataFetcher:
                 "total_units": safe_int(row.get("B25001_001E")),
                 "owner_occupied": safe_int(row.get("B25003_002E")),
                 "renter_occupied": safe_int(row.get("B25003_003E")),
+                "single_family_detached": safe_int(row.get("B25024_002E")),
+                "single_family_attached": safe_int(row.get("B25024_003E")),
+                "four_bedroom_units": safe_int(row.get("B25041_005E")),
+                "five_plus_bedroom_units": safe_int(row.get("B25041_006E")),
                 "population": safe_int(row.get("B01003_001E")),
                 "source": "US Census Bureau ACS 2022 (live)",
             }
@@ -284,6 +315,90 @@ class DataFetcher:
 
         except Exception as exc:
             print(f"[DataFetcher] Census fetch failed ({exc}), using baseline data")
+            return self._baseline_census(state)
+
+
+    def get_census_municipality_data(self, county_cfg: dict, municipality_cfg: dict) -> dict:
+        """
+        Fetch ACS estimates for a specific Wisconsin municipality (city, village, or town).
+        For cities/villages we query `place`; for towns we query county subdivision.
+        """
+        state = county_cfg["state"]
+        muni_id = municipality_cfg.get("id", "all")
+        key = f"census_{state}_{muni_id}"
+        cached = self._load(key)
+        if cached:
+            return cached
+
+        geo_type = municipality_cfg.get("type", "place")
+        state_fips = county_cfg["fips_state"]
+        county_fips = county_cfg["fips_county"]
+
+        if geo_type == "county_subdivision":
+            geo_code = municipality_cfg.get("fips_subdivision")
+            geo_for = f"county subdivision:{geo_code}"
+            geo_in = f"state:{state_fips}+county:{county_fips}"
+        else:
+            geo_code = municipality_cfg.get("fips_place")
+            geo_for = f"place:{geo_code}"
+            geo_in = f"state:{state_fips}"
+
+        variables = ",".join([
+            "NAME",
+            "B25077_001E",
+            "B25064_001E",
+            "B19013_001E",
+            "B25001_001E",
+            "B25003_002E",
+            "B25003_003E",
+            "B25024_002E",
+            "B25024_003E",
+            "B25041_005E",
+            "B25041_006E",
+            "B01003_001E",
+        ])
+
+        url = (
+            f"https://api.census.gov/data/2022/acs/acs5"
+            f"?get={variables}&for={geo_for}&in={geo_in}"
+        )
+
+        try:
+            resp = self.session.get(url, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            if len(data) < 2:
+                raise ValueError("Empty Census response")
+
+            headers, values = data[0], data[1]
+            row = dict(zip(headers, values))
+
+            def safe_int(v):
+                try:
+                    n = int(v)
+                    return n if n > 0 else 0
+                except Exception:
+                    return 0
+
+            result = {
+                "county": row.get("NAME", municipality_cfg.get("name", "Dodge County")),
+                "median_home_value": safe_int(row.get("B25077_001E")),
+                "median_rent": safe_int(row.get("B25064_001E")),
+                "median_income": safe_int(row.get("B19013_001E")),
+                "total_units": safe_int(row.get("B25001_001E")),
+                "owner_occupied": safe_int(row.get("B25003_002E")),
+                "renter_occupied": safe_int(row.get("B25003_003E")),
+                "single_family_detached": safe_int(row.get("B25024_002E")),
+                "single_family_attached": safe_int(row.get("B25024_003E")),
+                "four_bedroom_units": safe_int(row.get("B25041_005E")),
+                "five_plus_bedroom_units": safe_int(row.get("B25041_006E")),
+                "population": safe_int(row.get("B01003_001E")),
+                "source": "US Census Bureau ACS 2022 (live municipality)",
+            }
+            self._save(key, result)
+            return result
+        except Exception as exc:
+            print(f"[DataFetcher] Municipality Census fetch failed ({exc}), falling back to county baseline")
             return self._baseline_census(state)
 
     def _baseline_census(self, state: str) -> dict:
@@ -296,6 +411,10 @@ class DataFetcher:
             "total_units": bd["total_units"],
             "owner_occupied": bd["owner_occupied"],
             "renter_occupied": bd["renter_occupied"],
+            "single_family_detached": bd.get("single_family_units", int(bd["total_units"] * 0.68)),
+            "single_family_attached": int(bd.get("single_family_units", int(bd["total_units"] * 0.68)) * 0.15),
+            "four_bedroom_units": int(bd.get("four_plus_bedroom_units", int(bd["total_units"] * 0.24)) * 0.7),
+            "five_plus_bedroom_units": int(bd.get("four_plus_bedroom_units", int(bd["total_units"] * 0.24)) * 0.3),
             "population": bd["total_units"] * 2,
             "source": "Baseline estimates (Census API unavailable)",
         }

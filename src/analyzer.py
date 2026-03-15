@@ -10,6 +10,14 @@ from typing import Any
 
 class PropertyAnalyzer:
 
+    @staticmethod
+    def _bounded_score(value: float, low: float, high: float) -> float:
+        if high <= low:
+            return 50.0
+        score = (value - low) / (high - low) * 100
+        return max(0.0, min(100.0, round(score, 1)))
+
+
     # ---------------------------------------------------------------- trend
     def calculate_trend(self, zhvi_data: dict) -> dict:
         """High-level trend summary for the county."""
@@ -116,6 +124,34 @@ class PropertyAnalyzer:
         piti = round(piti, 2)
         affordability_index = round((median_income / 12) / piti * 100, 1) if piti else 0
 
+        # Family/owner-occupant metrics (target: 4+ bed, 2+ bath single-family)
+        sf_detached = census_data.get("single_family_detached", 0)
+        sf_attached = census_data.get("single_family_attached", 0)
+        four_bed = census_data.get("four_bedroom_units", 0)
+        five_bed = census_data.get("five_plus_bedroom_units", 0)
+        four_plus_bed_units = four_bed + five_bed
+
+        single_family_units = sf_detached + sf_attached
+        single_family_share = round((single_family_units / census_data.get("total_units", 1)) * 100, 1) if census_data.get("total_units", 0) else 0
+        four_plus_bed_share = round((four_plus_bed_units / census_data.get("total_units", 1)) * 100, 1) if census_data.get("total_units", 0) else 0
+
+        sfh_family_price_estimate = round(current * 1.35, 2)
+        sfh_down = sfh_family_price_estimate * 0.20
+        sfh_loan = sfh_family_price_estimate - sfh_down
+        if monthly_rate > 0:
+            sfh_piti = sfh_loan * (monthly_rate * (1 + monthly_rate) ** n_payments) / (((1 + monthly_rate) ** n_payments) - 1)
+        else:
+            sfh_piti = sfh_loan / n_payments
+        sfh_piti += sfh_family_price_estimate * 0.012 / 12
+        sfh_piti = round(sfh_piti, 2)
+
+        income_needed = round(sfh_piti * 12 / 0.30, 2)
+        family_payment_burden_pct = round((sfh_piti / (median_income / 12)) * 100, 1) if median_income else 0
+        family_affordability_score = self._bounded_score(45 - family_payment_burden_pct, 0, 30)
+        supply_score = self._bounded_score((single_family_share * 0.6) + (four_plus_bed_share * 1.4), 25, 85)
+        volatility_score = self._bounded_score(12 - volatility, 0, 10)
+        family_investor_fit_score = round((family_affordability_score * 0.45) + (supply_score * 0.35) + (volatility_score * 0.20), 1)
+
         return {
             "current_zhvi": round(current, 2),
             "median_home_value_census": census_data.get("median_home_value", 0),
@@ -132,6 +168,16 @@ class PropertyAnalyzer:
             "pct_from_high": pct_from_high,
             "pct_from_low": pct_from_low,
             "volatility_pct": volatility,
+            "single_family_units": single_family_units,
+            "single_family_share_pct": single_family_share,
+            "four_plus_bedroom_units": four_plus_bed_units,
+            "four_plus_bedroom_share_pct": four_plus_bed_share,
+            "sfh_family_price_estimate": sfh_family_price_estimate,
+            "sfh_family_monthly_piti": sfh_piti,
+            "income_needed_for_sfh_family_home": income_needed,
+            "family_payment_burden_pct": family_payment_burden_pct,
+            "family_affordability_score": family_affordability_score,
+            "family_investor_fit_score": family_investor_fit_score,
             "population": census_data.get("population", 0),
             "total_units": census_data.get("total_units", 0),
             "owner_occupied": census_data.get("owner_occupied", 0),
