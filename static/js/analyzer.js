@@ -647,20 +647,27 @@ function renderNews(items) {
 
 
 async function loadWiMunicipalityRankings() {
+  if (!wiRankingsBtn || !wiRankingsGrid) return;
+
   wiRankingsBtn.textContent = "Loading…";
   wiRankingsBtn.disabled = true;
   wiRankingsGrid.classList.remove("hidden");
   wiRankingsGrid.innerHTML = '<div class="compare-card"><h3>Loading rankings…</h3><p style="color:#94a3b8">Calculating municipality scores and family-home fit metrics.</p></div>';
+
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), 20000);
   try {
-    const resp = await fetch("/api/wi-municipality-rankings");
+    const resp = await fetch("/api/wi-municipality-rankings", { signal: ctrl.signal });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     if (!data.success) throw new Error(data.error || "Failed to load WI rankings");
     renderWiMunicipalityRankings(data.rankings || []);
   } catch (e) {
-    wiRankingsGrid.innerHTML = `<div class="compare-card"><h3>Unable to load WI rankings</h3><p style="color:#ef4444">${e.message}</p></div>`;
-    showError("WI municipality rankings failed: " + e.message);
+    const msg = e.name === "AbortError" ? "Request timed out after 20s" : e.message;
+    wiRankingsGrid.innerHTML = `<div class="compare-card"><h3>Unable to load WI rankings</h3><p style="color:#ef4444">${msg}</p></div>`;
+    showError("WI municipality rankings failed: " + msg);
   } finally {
+    clearTimeout(timeoutId);
     wiRankingsBtn.textContent = "Reload WI Rankings";
     wiRankingsBtn.disabled = false;
   }

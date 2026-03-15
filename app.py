@@ -56,6 +56,20 @@ DODGE_WI_MUNICIPALITIES = [
     {"id": "theresa-village", "label": "Theresa", "name": "Theresa", "kind": "village", "type": "place", "fips_place": "77100"},
 ]
 
+def estimate_wi_municipality_census(fetcher: DataFetcher, municipality_cfg: dict) -> dict:
+    """Fast deterministic municipality estimate when Census API is unavailable."""
+    base = dict(fetcher._baseline_census("WI"))
+    stable_seed = sum(ord(ch) for ch in municipality_cfg.get("id", "all"))
+    factor = 0.90 + ((stable_seed % 21) / 100)
+
+    base["county"] = f"{municipality_cfg.get('name', 'Dodge County')}, WI"
+    base["median_home_value"] = int(base.get("median_home_value", 0) * factor)
+    base["median_rent"] = int(base.get("median_rent", 0) * (0.95 + ((stable_seed % 11) / 100)))
+    base["median_income"] = int(base.get("median_income", 0) * (0.94 + ((stable_seed % 13) / 100)))
+    base["source"] = "Estimated municipality profile (county baseline fallback)"
+    return base
+
+
 
 @app.route("/favicon.ico")
 def favicon():
@@ -139,25 +153,11 @@ def get_wi_municipality_rankings():
     county_median_home = county_census.get("median_home_value", 0) or 1
     offline_census_mode = "Baseline" in str(county_census.get("source", ""))
 
-    def estimated_muni_census(municipality_cfg: dict) -> dict:
-        """Fast deterministic municipality estimate when Census API is unavailable."""
-        base = dict(fetcher._baseline_census("WI"))
-        # Stable factor per municipality id: ~0.90x to ~1.10x
-        stable_seed = sum(ord(ch) for ch in municipality_cfg.get("id", "all"))
-        factor = 0.90 + ((stable_seed % 21) / 100)
-
-        base["county"] = f"{municipality_cfg.get('name', 'Dodge County')}, WI"
-        base["median_home_value"] = int(base.get("median_home_value", 0) * factor)
-        base["median_rent"] = int(base.get("median_rent", 0) * (0.95 + ((stable_seed % 11) / 100)))
-        base["median_income"] = int(base.get("median_income", 0) * (0.94 + ((stable_seed % 13) / 100)))
-        base["source"] = "Estimated municipality profile (county baseline fallback)"
-        return base
-
     for municipality_cfg in DODGE_WI_MUNICIPALITIES:
         if municipality_cfg["id"] == "all":
             continue
         try:
-            census_data = estimated_muni_census(municipality_cfg) if offline_census_mode else fetcher.get_census_municipality_data(county_cfg, municipality_cfg)
+            census_data = estimate_wi_municipality_census(fetcher, municipality_cfg) if offline_census_mode else fetcher.get_census_municipality_data(county_cfg, municipality_cfg)
 
             muni_median_home = census_data.get("median_home_value", 0)
             scale = (muni_median_home / county_median_home) if muni_median_home and county_median_home else 1.0
