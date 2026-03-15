@@ -157,8 +157,12 @@ def get_wi_municipality_rankings():
         if municipality_cfg["id"] == "all":
             continue
         try:
-            census_data = estimate_wi_municipality_census(fetcher, municipality_cfg) if offline_census_mode else fetcher.get_census_municipality_data(county_cfg, municipality_cfg)
+            if offline_census_mode:
+                census_data = estimate_wi_municipality_census(fetcher, municipality_cfg)
+            else:
+                census_data = fetcher.get_census_municipality_data(county_cfg, municipality_cfg)
 
+            # Keep trend/scoring inputs defined regardless of branch.
             muni_median_home = census_data.get("median_home_value", 0)
             scale = (muni_median_home / county_median_home) if muni_median_home and county_median_home else 1.0
 
