@@ -18,6 +18,7 @@ let currentRange = 12; // months shown on chart
    ============================================================ */
 const countySelect = document.getElementById("county-select");
 const loadBtn = document.getElementById("load-btn");
+const municipalitySelect = document.getElementById("municipality-select");
 const loading = document.getElementById("loading");
 const errorBanner = document.getElementById("error-banner");
 const sourceNotice = document.getElementById("source-notice");
@@ -27,20 +28,28 @@ const compareGrid = document.getElementById("compare-grid");
 /* ============================================================
    Init
    ============================================================ */
-document.addEventListener("DOMContentLoaded", () => {
-  loadMarketData("WI"); // default to Wisconsin on page load
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadMunicipalityOptions();
+  toggleMunicipalitySelect("WI");
+  loadMarketData("WI", municipalitySelect.value || "all"); // default to Wisconsin on page load
   loadSignals("WI");    // load macro signals in parallel
 
   loadBtn.addEventListener("click", () => {
     const state = countySelect.value;
-    loadMarketData(state);
+    const municipality = state === "WI" ? municipalitySelect.value : "all";
+    loadMarketData(state, municipality);
     loadSignals(state);
+  });
+
+  countySelect.addEventListener("change", () => {
+    toggleMunicipalitySelect(countySelect.value);
   });
 
   countySelect.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       const state = countySelect.value;
-      loadMarketData(state);
+      const municipality = state === "WI" ? municipalitySelect.value : "all";
+      loadMarketData(state, municipality);
       loadSignals(state);
     }
   });
@@ -60,13 +69,37 @@ document.addEventListener("DOMContentLoaded", () => {
 /* ============================================================
    Data loading
    ============================================================ */
-async function loadMarketData(state) {
+
+
+async function loadMunicipalityOptions() {
+  try {
+    const resp = await fetch("/api/wi-dodge-municipalities");
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const options = await resp.json();
+
+    municipalitySelect.innerHTML = options
+      .map((opt) => `<option value="${opt.id}">${opt.label} (${opt.kind})</option>`)
+      .join("");
+
+    municipalitySelect.value = "all";
+  } catch (e) {
+    console.warn("Failed to load municipality options:", e.message);
+    municipalitySelect.innerHTML = '<option value="all">All of Dodge County</option>';
+  }
+}
+
+function toggleMunicipalitySelect(state) {
+  const isWi = state === "WI";
+  municipalitySelect.disabled = !isWi;
+  if (!isWi) municipalitySelect.value = "all";
+}
+async function loadMarketData(state, municipality = "all") {
   showLoading(true);
   hideError();
   hideSections();
 
   try {
-    const resp = await fetch(`/api/market-data?state=${state}`);
+    const resp = await fetch(`/api/market-data?state=${state}&municipality=${encodeURIComponent(municipality)}`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     if (!data.success) throw new Error(data.error || "Unknown error");
