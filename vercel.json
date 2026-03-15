@@ -17,6 +17,6 @@
     }
   ],
   "env": {
-    "FRED_API_KEY": "@fred_api_key"
+    "FRED_API_KEY": "a327391ba7dad27b265ff595414ea929"
   }
 }
